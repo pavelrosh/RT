@@ -42,7 +42,7 @@ static void		read_kernel(const char *filename,
 	*source_size = read(fd, *source_str, MAX_SOURCE_SIZE);
 }
 
-void			start_cl(t_opencl *cl)
+void			cl_start(t_opencl *cl)
 {
 	int r;
 
@@ -66,51 +66,50 @@ void			start_cl(t_opencl *cl)
 	r = clBuildProgram(cl->program, 1, &(cl->device_id),
 		"-I ./includes/", NULL, NULL);
 	debugger(r, cl->program, cl->device_id);
-	cl->kernel = clCreateKernel(cl->program, "rendering", &r);
-	if (r)
-		exit_message("failed to create kernel");
 }
 
-void			mid_cl(t_opencl *cl, t_main mlx, int memlenth)
+int				count_arr(t_scene sc)
 {
-	int ret;
+	int i;
+	int sum;
 
+	i = -1;
+	sum = 0;
+	while (++i < sc.textures_num)
+	{
+		sum += sc.textures_info[i].x * sc.textures_info[i].y;
+	}
+	if (!sum)
+		return (1);
+	else
+		return (sum);
+}
+
+void			cl_kernel_buffer_1(t_opencl *cl, t_main *mlx, int memlenth)
+{
+	int			ret;
+
+	cl->kernel = clCreateKernel(cl->program, "rendering", &ret);
+	if (ret)
+		exit_message("failed to create kernel");
 	cl->memobj_data = clCreateBuffer(cl->context, CL_MEM_READ_WRITE,
 				memlenth * sizeof(int), NULL, &ret);
 	if (ret)
 		exit_message("failed to create buf1");
-	cl->memobj_figures = clCreateBuffer(cl->context,
-		CL_MEM_USE_HOST_PTR,
-		(mlx.scene->o_num) * sizeof(t_figure), mlx.scene->objects, &ret);
+	cl->memobj_figures = clCreateBuffer(cl->context, CL_MEM_USE_HOST_PTR,
+		mlx->scene->o_num * sizeof(t_figure), mlx->scene->objects, &ret);
 	if (ret)
-		exit_message(ft_strjoin("failed to create buf2 ", ft_itoa(ret)));
-	cl->memobj_light = clCreateBuffer(cl->context,
-		CL_MEM_COPY_HOST_PTR,
-		(mlx.scene->l_num) * sizeof(t_figure) + 1, mlx.scene->lights, &ret);
+		exit_message("failed to create buf2");
+	cl->memobj_light = clCreateBuffer(cl->context, CL_MEM_USE_HOST_PTR,
+		mlx->scene->l_num * sizeof(t_figure), mlx->scene->lights, &ret);
 	if (ret)
 		exit_message("failed to create buf3");
-}
-
-void			args_cl(t_opencl *cl, t_main mlx)
-{
-	int ret;
-
-	if ((ret = clSetKernelArg(cl->kernel, 0,
-		sizeof(cl_mem), (void *)&(cl->memobj_data))))
-		exit_message("failed to set arg1");
-	if ((ret = clSetKernelArg(cl->kernel, 1,
-		sizeof(cl_mem), (void *)&(cl->memobj_figures))))
-		exit_message("failed to set arg2 ");
-	if ((ret = clSetKernelArg(cl->kernel, 2,
-		sizeof(cl_mem), (void *)&(cl->memobj_light))))
-		exit_message("failed to set arg3");
-	if ((ret = clSetKernelArg(cl->kernel, 3,
-		sizeof(t_figure), (void *)&mlx.scene->cam)))
-		exit_message("failed to set arg4");
-	if ((ret = clSetKernelArg(cl->kernel, 4,
-		sizeof(int), &mlx.scene->l_num)))
-		exit_message("failed to set arg5");
-	if ((ret = clSetKernelArg(cl->kernel, 5,
-		sizeof(int), &mlx.scene->o_num)))
-		exit_message("failed to set arg6");
+	cl->memobj_textures = clCreateBuffer(cl->context, CL_MEM_USE_HOST_PTR,
+		count_arr(*mlx->scene) * sizeof(int), mlx->scene->textures, &ret);
+	if (ret)
+		exit_message("failed to create buf4");
+	cl->memobj_textures_sz = clCreateBuffer(cl->context, CL_MEM_USE_HOST_PTR,
+mlx->scene->textures_num * sizeof(cl_int3), mlx->scene->textures_info, &ret);
+	if (ret)
+		exit_message("failed to create buf5");
 }
